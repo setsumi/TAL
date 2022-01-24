@@ -156,6 +156,7 @@
 #define ID_SLOW5                        40010
 #define ID_SLOW6                        40011
 #define ID_SLOW7                        40012
+#define ID_ROTATE_MIRRORS               40016
 #define ID_AUTO_CLIPBOARD               40013
 #define ID_AUTOCLIPBOARD                40014
 #define ID_VIEW_SHOWALL                 40015

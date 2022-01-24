@@ -8,12 +8,12 @@
 
 #define WWWJDIC_DEFAULT L"http://wwwjdic.se/cgi-bin/wwwjdic.cgi"
 
-void JdicWindow::LoadConfig()
+void JdicWindow::UpdateURL(const wchar_t *purl)
 {
 	free(host);
 	free(path);
 	wchar_t url[1000];
-	GetPrivateProfileStringW(L"WWWJDIC", L"Mirror", WWWJDIC_DEFAULT, url, sizeof(url)/sizeof(*url) - 5, config.ini);
+	wcscpy(url, purl);
 	int base;
 	if (!wcsnicmp(url, L"https://", 8))
 	{
@@ -41,9 +41,51 @@ void JdicWindow::LoadConfig()
 	host = wcsdup(url+base);
 }
 
-JdicWindow::JdicWindow() : HttpWindow(L"WWWJDIC", L"http://wwwjdic.se/cgi-bin/wwwjdic.cgi", TWF_RICH_TEXT | TWF_SEPARATOR | TWF_CONFIG_BUTTON)
+void JdicWindow::LoadConfig()
 {
-	autoClipboard = 0;
+	wchar_t url[1000];
+	wchar_t keyname[1000];
+	
+	mirrors.clear();
+	int num_mirr = GetPrivateProfileIntW(windowType, L"Mirrors Number", 0, config.ini);
+	if (!num_mirr) { // make default mirrors
+		const wchar_t *mirr[] =
+		{
+			L"http://wwwjdic.se/cgi-bin/wwwjdic.cgi",
+			L"http://nihongo.monash.edu/cgi-bin/wwwjdic",
+			L"http://nlp.cis.unimelb.edu.au/jwb/wwwjdic/wwwjdic.cgi",
+			L"http://wwwjdic.biz/cgi-bin/wwwjdic",
+			L"http://www.edrdg.org/cgi-bin/wwwjdic/wwwjdic",
+		};
+		num_mirr = sizeof(mirr)/sizeof(mirr[0]);
+		WritePrivateProfileStringW(windowType, L"Mirrors Number", _itow(num_mirr, url, 10), config.ini);
+		for (int i=0; i < num_mirr; i++) {
+			wsprintf(keyname, L"Mirror %d", i);
+			WritePrivateProfileStringW(windowType, keyname, mirr[i], config.ini);
+			mirrors.push_back(mirr[i]);
+		}
+	} else { // load mirrors
+		for (int i=0; i < num_mirr; i++) {
+			wsprintf(keyname, L"Mirror %d", i);
+			GetPrivateProfileStringW(windowType, keyname, WWWJDIC_DEFAULT, url, sizeof(url)/sizeof(*url) - 5, config.ini);
+			mirrors.push_back(url);
+		}
+	}
+	// set current mirror
+	if (rotateMirrors)
+		UpdateURL(mirrors[currentMirror].c_str());
+	else {
+		GetPrivateProfileStringW(windowType, L"Mirror", WWWJDIC_DEFAULT, url, sizeof(url)/sizeof(*url) - 5, config.ini);
+		UpdateURL(url);
+	}
+}
+
+JdicWindow::JdicWindow() : HttpWindow(L"WWWJDIC", WWWJDIC_DEFAULT, TWF_RICH_TEXT | TWF_SEPARATOR | TWF_CONFIG_BUTTON)
+{
+	rotateMirrors = GetPrivateProfileIntW(windowType, L"Rotate Mirrors", 0, config.ini);
+	currentMirror = 0;
+
+	//autoClipboard = 0;
 	requestHeaders = L"";
 	host = 0;
 	path = 0;
@@ -227,17 +269,9 @@ INT_PTR CALLBACK JdicDialogProc(HWND hWndDlg, UINT uMsg, WPARAM wParam, LPARAM l
 	{
 		case WM_INITDIALOG:
 			{
-				const wchar_t *mirrors[] =
-				{
-					L"http://www.csse.monash.edu.au/~jwb/cgi-bin/wwwjdic.cgi",
-					L"http://wwwjdic.biz/cgi-bin/wwwjdic",
-					L"http://wwwjdic.se/cgi-bin/wwwjdic.cgi",
-					L"http://www.edrdg.org/cgi-bin/wwwjdic/wwwjdic",
-					L"https://gengo.com/wwwjdic/cgi-data/wwwjdic",
-				};
-				for (int i=0; i<sizeof(mirrors)/sizeof(mirrors[0]); i++)
-					SendMessage(hWndCombo, CB_ADDSTRING, 0, (LPARAM)mirrors[i]);
 				JdicWindow * jdic = (JdicWindow*)lParam;
+				for (int i=0; i < jdic->mirrors.size(); i++)
+					SendMessage(hWndCombo, CB_ADDSTRING, 0, (LPARAM)jdic->mirrors[i].c_str());
 				wchar_t temp[1014];
 				wsprintf(temp, L"http%s://%s%s", jdic->port == 443 ? L"s" : L"", jdic->host, jdic->path);
 				if (wchar_t *p = wcschr(temp, '?'))
@@ -339,7 +373,33 @@ int JdicWindow::WndProc(LRESULT *output, UINT uMsg, WPARAM wParam, LPARAM lParam
 				LoadConfig();
 				return 1;
 			}
+			else if (LOWORD(wParam) == ID_ROTATE_MIRRORS)
+			{
+				int w = SendMessage(hWndToolbar, TB_GETSTATE, ID_ROTATE_MIRRORS, 0);
+				rotateMirrors = ((w & TBSTATE_CHECKED) != 0);
+				wchar_t Buffer[100];
+				WritePrivateProfileStringW(windowType, L"Rotate Mirrors", _itow(rotateMirrors, Buffer, 10), config.ini);				
+				return 0;
+			}
 		}
 	}
 	return HttpWindow::WndProc(output, uMsg, wParam, lParam);;
+}
+
+void JdicWindow::AddClassButtons()
+{
+	TBBUTTON tbButtons[] =
+	{
+		{16, ID_ROTATE_MIRRORS, TBSTATE_ENABLED | (TBSTATE_CHECKED * (rotateMirrors != 0)), BTNS_CHECK, {0}, 0, (INT_PTR)L"Rotate Translation Mirrors"},
+	};
+	SendMessage(hWndToolbar, TB_ADDBUTTONS, (WPARAM)sizeof(tbButtons)/sizeof(tbButtons[0]), (LPARAM)&tbButtons);
+}
+
+void JdicWindow::Translate(SharedString *string, int history_id, bool only_use_history)
+{
+	if (rotateMirrors) {
+		if (++currentMirror >= mirrors.size()) currentMirror = 0;
+		UpdateURL(mirrors[currentMirror].c_str());
+	}
+	HttpWindow::Translate(string, history_id, only_use_history);
 }

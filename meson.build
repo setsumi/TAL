@@ -38,6 +38,7 @@ TranslationAggregator_cflags += [
 	'-DMINGW_HAS_SECURE_API',
 	'-DUNICODE',
 	'-D_UNICODE',
+	'-Wno-write-strings',
 ]
 
 TranslationAggregator_cppflags += TranslationAggregator_cflags

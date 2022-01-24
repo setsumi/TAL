@@ -1925,6 +1925,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 #ifdef SETSUMI_CHANGES
 	SetErrorMode(SetErrorMode(0) | SEM_NOGPFAULTERRORBOX);
 #endif
+	//hack - disable console window
+	::ShowWindow(::GetConsoleWindow(), SW_HIDE);
+	//hackend
+
 	WSADATA wsaData;
 	int winsockHappy = !WSAStartup(0x202, &wsaData);
 	ghInst = hInstance;
