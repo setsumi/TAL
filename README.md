@@ -3,7 +3,7 @@ Changes:
 - hid parasite console window
 - fix always disabled autoClipboard for WWWJDIC
 - auto-rotate WWWJDIC mirrors to minimize translation delays
-- WWWJDIC mrrors list editable in .ini
+- WWWJDIC mrrors list editable in `.ini`
 
 ---
 ### Translation Aggregator
