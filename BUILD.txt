@@ -1,0 +1,6 @@
+cd TAL
+del build/*
+
+pipenv shell
+meson setup build/ --cross-file ./3rdParty/meson_toolchains/mingw32_meson.ini
+meson compile -C build archive
